@@ -16,8 +16,7 @@ import (
 	"strings"
 )
 
-var
-(
+var (
 	logsExample = templates.Examples(i18n.T(`
 		# Return snapshot logs from pod openshift-apiserver-operator-849d7869ff-r94g8 with a maximum of 10 Entries
 		kubectl historical-logs --podname=openshift-apiserver-operator-849d7869ff-r94g8 --maxlogs=10
@@ -35,19 +34,18 @@ var
 )
 
 type LogParameters struct {
-	Namespace string `json:"namespace"`
-	Index string `json:"index"`
-	Podname string `json:"podname"`
-	StartTime string `json:"starttime"`
+	Namespace  string `json:"namespace"`
+	Index      string `json:"index"`
+	Podname    string `json:"podname"`
+	StartTime  string `json:"starttime"`
 	FinishTime string `json:"finishtime"`
-	Level string `json:"level"`
-	MaxLogs string `json:"maxlogs"`
+	Level      string `json:"level"`
+	MaxLogs    string `json:"maxlogs"`
 }
 
-type ResponseLogs struct{
+type ResponseLogs struct {
 	Logs []string `json:"Logs"`
 }
-
 
 func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 
@@ -58,7 +56,7 @@ func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 		Example: logsExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := o.Execute(streams)
-			if err!=nil {
+			if err != nil {
 				return err
 			}
 			return nil
@@ -69,7 +67,7 @@ func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func (o *LogParameters)AddFlags(cmd *cobra.Command) {
+func (o *LogParameters) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.Podname, "podname", "", "Filter Historical logs on a specific pod name.")
 	cmd.Flags().StringVar(&o.Namespace, "namespace", "", "Extract Historical logs from a specific namespace")
@@ -81,8 +79,7 @@ func (o *LogParameters)AddFlags(cmd *cobra.Command) {
 
 }
 
-
-func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error{
+func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 
 	kubeconfig := filepath.Join(
 		os.Getenv("HOME"), ".kube", "config",
@@ -90,56 +87,56 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error{
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return fmt.Errorf("Kubeconfig Error: ",err)
+		return fmt.Errorf("Kubeconfig Error: %v", err)
 	}
 
 	payload := new(bytes.Buffer)
-	err=json.NewEncoder(payload).Encode(o)
+	err = json.NewEncoder(payload).Encode(o)
 
-	if err!=nil{
-		return fmt.Errorf("An Error Occurred while encoding JSON: ",err)
+	if err != nil {
+		return fmt.Errorf("An Error Occurred while encoding JSON: %v", err)
 	}
 
 	clusterUrl := config.Host
-	endIndex := strings.LastIndex(clusterUrl,":")
-	startIndex := strings.Index(clusterUrl,".")+1
+	endIndex := strings.LastIndex(clusterUrl, ":")
+	startIndex := strings.Index(clusterUrl, ".") + 1
 	clusterName := clusterUrl[startIndex:endIndex]
 
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
-	 act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
+	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
 
-	ApiUrl := "http://log-exploration-api-route-openshift-logging.apps."+clusterName+"/logs/filter"
+	ApiUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
 
 	req, err := http.NewRequest("GET", ApiUrl, payload)
 
-	if err!=nil {
-		return fmt.Errorf("Request Failed: ",err)
+	if err != nil {
+		return fmt.Errorf("Request Failed: %v", err)
 	}
 
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Response Error: ",err)
+		return fmt.Errorf("Response Error: %v", err)
 	}
 
-	responseBody,err := ioutil.ReadAll(res.Body)
-	if err!=nil {
-		return fmt.Errorf("Failed to read Response: ",err)
+	responseBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("Failed to read Response: %v", err)
 	}
 
 	jsonResponse := &ResponseLogs{}
-	json.Unmarshal(responseBody,&jsonResponse)
+	json.Unmarshal(responseBody, &jsonResponse)
 
-	for i:=0;i<len(jsonResponse.Logs);i++{
+	for i := 0; i < len(jsonResponse.Logs); i++ {
 
 		log := LogOptions{}
-		err = json.Unmarshal([]byte(jsonResponse.Logs[i]),&log)
+		err = json.Unmarshal([]byte(jsonResponse.Logs[i]), &log)
 
-		if err!=nil {
-			return fmt.Errorf("An Error Occurred while decoding response: ",err)
+		if err != nil {
+			return fmt.Errorf("An Error Occurred while decoding response: %v", err)
 		}
 
-		if len(log.Source.Message)>0 {
+		if len(log.Source.Message) > 0 {
 			fmt.Fprintf(streams.Out, log.Source.Message+"\n")
 		}
 
