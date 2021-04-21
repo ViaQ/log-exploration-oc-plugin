@@ -1,10 +1,9 @@
+CONTAINER_ENGINE?=podman
 EXECUTABLE:=log-exploration-oc-plugin
 PACKAGE:=github.com/ViaQ/log-exploration-oc-plugin
-IMAGE_PUSH_REGISTRY:=docker://quay.io/openshift-logging/$(EXECUTABLE)
+IMAGE_PUSH_REGISTRY:=quay.io/emishra/$(EXECUTABLE)
 VERSION:=${shell git describe --tags --always}
 BUILDTIME := ${shell date -u '+%Y-%m-%d_%H:%M:%S'}
-LDFLAGS:= -s -w -X '${PACKAGE}/pkg/version.Version=${VERSION}' \
-					-X '${PACKAGE}/pkg/version.BuildTime=${BUILDTIME}'
 BUILD_DIR:=./bin
 
 .PHONY: build test clean image image-publish
@@ -24,8 +23,8 @@ clean:
 	rm -rf $(BUILD_DIR)/
 
 image: build
-	docker build . -t ${EXECUTABLE}:${VERSION}
+	$(CONTAINER_ENGINE) build . -t ${IMAGE_PUSH_REGISTRY}:${VERSION}
 
 image-publish: image
-	docker push ${EXECUTABLE}:${VERSION} ${IMAGE_PUSH_REGISTRY}:${VERSION}
+	$(CONTAINER_ENGINE) push ${IMAGE_PUSH_REGISTRY}:${VERSION}
 
