@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -44,20 +43,20 @@ var (
 )
 
 type LogParameters struct {
-	Namespace   string `json:"namespace"`
-	Podname     string `json:"podname"`
-	Tail        string `json:"tail"`
-	StartTime   string `json:"starttime"`
-	EndTime     string `json:"finishtime"`
-	Level       string `json:"level"`
-	Limit       string `json:"maxlogs"`
-	Deployment  string `json:"deployment"`
-	StatefulSet string `json:"statefulset"`
-	DaemonSet   string `json:"daemonset"`
+	Namespace   string
+	Podname     string
+	Tail        string
+	StartTime   string
+	EndTime     string
+	Level       string
+	Limit       string
+	Deployment  string
+	StatefulSet string
+	DaemonSet   string
 }
 
 type ResponseLogs struct {
-	Logs []string `json:"Logs"`
+	Logs []string
 }
 
 func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
@@ -170,23 +169,17 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 	}
 
 	var logList []string
-	client := &http.Client{}
 	if len(podList) > 0 {
 		for _, pod := range podList {
+
 			o.Podname = pod
+			response,err := o.makeHttpRequest(ApiUrl)
 
-			payload := new(bytes.Buffer)
-			err = json.NewEncoder(payload).Encode(o)
+			if err!=nil{
+				return err
+			}
 
-			req, err := http.NewRequest("GET", ApiUrl, payload)
-			if err != nil {
-				return fmt.Errorf("http request failed: %v", err)
-			}
-			res, err := client.Do(req)
-			if err != nil {
-				return fmt.Errorf("response error: %v", err)
-			}
-			responseBody, err := ioutil.ReadAll(res.Body)
+			responseBody, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				return fmt.Errorf("failed to read response: %v", err)
 			}
@@ -204,19 +197,11 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 
 	} else {
 
-		payload := new(bytes.Buffer)
-		err = json.NewEncoder(payload).Encode(o)
-
-		req, err := http.NewRequest("GET", ApiUrl, payload)
-		if err != nil {
-			return fmt.Errorf("http request failed: %v", err)
+		response,err := o.makeHttpRequest(ApiUrl)
+		if err!=nil{
+			return err
 		}
-
-		res, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("response error: %v", err)
-		}
-		responseBody, err := ioutil.ReadAll(res.Body)
+		responseBody, err := ioutil.ReadAll(response.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response: %v", err)
 		}
@@ -233,6 +218,62 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 	}
 	return nil
 }
+
+func (o *LogParameters) makeHttpRequest(baseUrl string) (*http.Response,error) {
+
+	var urlBuilder strings.Builder
+	urlBuilder.WriteString(baseUrl)
+	numParameters := 0
+	if len(o.Podname) >0{
+		urlBuilder.WriteString("?")
+		urlBuilder.WriteString("podname="+o.Podname)
+		numParameters = numParameters + 1
+	}
+	if len(o.Namespace) >0{
+		if numParameters == 0{
+			urlBuilder.WriteString("?")
+		}else{
+			urlBuilder.WriteString("&")
+		}
+		urlBuilder.WriteString("namespace="+o.Namespace)
+		numParameters = numParameters + 1
+	}
+	if len(o.Limit) >0{
+		if numParameters == 0{
+			urlBuilder.WriteString("?")
+		}else{
+			urlBuilder.WriteString("&")
+		}
+		urlBuilder.WriteString("maxlogs="+o.Limit)
+		numParameters = numParameters + 1
+	}
+	if len(o.Level) >0{
+		if numParameters == 0{
+			urlBuilder.WriteString("?")
+		}else{
+			urlBuilder.WriteString("&")
+		}
+		urlBuilder.WriteString("level="+o.Level)
+		numParameters = numParameters + 1
+	}
+	if len(o.StartTime)>0 && len(o.EndTime)>0{
+		if numParameters == 0{
+			urlBuilder.WriteString("?")
+		}else{
+			urlBuilder.WriteString("&")
+		}
+		urlBuilder.WriteString("starttime="+o.StartTime)
+		urlBuilder.WriteString("&finishtime="+o.EndTime)
+		numParameters = numParameters + 1
+	}
+	response, err := http.Get(urlBuilder.String())
+
+	if err != nil {
+		return nil,fmt.Errorf("http request failed: %v", err)
+	}
+	return response,nil
+}
+
 func printLogs(logList []string, streams genericclioptions.IOStreams, limit string) error {
 
 	if len(logList) == 0 {
@@ -332,7 +373,6 @@ func GetStatefulSetPodsList(clientset *kubernetes.Clientset, targetStatefulSet s
 	statefulSets, _ := clientset.AppsV1().StatefulSets(namespace).List(context.Background(), metav1.ListOptions{})
 
 	for _, statefulSet := range statefulSets.Items {
-		fmt.Println(statefulSet.ObjectMeta.Name)
 		if statefulSet.ObjectMeta.Name == targetStatefulSet {
 			requiredStatefulSetFound = true
 			requiredStatefulSet = statefulSet
