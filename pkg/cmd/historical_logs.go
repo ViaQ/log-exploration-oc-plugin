@@ -61,6 +61,7 @@ type LogParameters struct {
 	Deployment  string
 	StatefulSet string
 	DaemonSet   string
+	Prefix      bool
 }
 
 type ResponseLogs struct {
@@ -97,7 +98,7 @@ func (o *LogParameters) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.DaemonSet, "daemonset", "", "Fetch logs from pods of a Daemon Set")
 	cmd.Flags().StringVar(&o.StatefulSet, "statefulset", "", "Fetch logs from pods of a Stateful Set")
 	cmd.Flags().StringVar(&o.Deployment, "deployment", "", "Fetch logs from pods of a Deployment")
-
+	cmd.Flags().BoolVar(&o.Prefix, "prefix", false, "Prefix each log with the log source (pod name and container name)")
 }
 
 func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
@@ -192,7 +193,7 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 				return fmt.Errorf("failed to read response: %v", err)
 			}
 
-			err = getLogs(responseBody, &logList)
+			err = getLogs(responseBody, &logList, o.Prefix)
 			if err != nil {
 				return err
 			}
@@ -214,7 +215,7 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 			return fmt.Errorf("failed to read response: %v", err)
 		}
 
-		err = getLogs(responseBody, &logList)
+		err = getLogs(responseBody, &logList, o.Prefix)
 		if err != nil {
 			return err
 		}
@@ -315,7 +316,7 @@ func printLogs(logList []string, streams genericclioptions.IOStreams, limit stri
 	return nil
 }
 
-func getLogs(responseBody []byte, logList *[]string) error {
+func getLogs(responseBody []byte, logList *[]string, prefix bool) error {
 
 	jsonResponse := &ResponseLogs{}
 	err := json.Unmarshal(responseBody, &jsonResponse)
@@ -333,7 +334,11 @@ func getLogs(responseBody []byte, logList *[]string) error {
 		}
 
 		if len(logOption.Source.Message) > 0 {
-			*logList = append(*logList, logOption.Source.Message)
+			if prefix && len(logOption.Source.Kubernetes.PodName) > 0 && len(logOption.Source.Kubernetes.ContainerName) > 0 {
+				*logList = append(*logList, "pod/"+logOption.Source.Kubernetes.PodName+"/"+logOption.Source.Kubernetes.ContainerName+"   "+logOption.Source.Message)
+			} else {
+				*logList = append(*logList, logOption.Source.Message)
+			}
 		}
 	}
 
