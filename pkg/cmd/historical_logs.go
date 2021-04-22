@@ -173,9 +173,9 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 		for _, pod := range podList {
 
 			o.Podname = pod
-			response,err := o.makeHttpRequest(ApiUrl)
+			response, err := o.makeHttpRequest(ApiUrl)
 
-			if err!=nil{
+			if err != nil {
 				return err
 			}
 
@@ -197,8 +197,8 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 
 	} else {
 
-		response,err := o.makeHttpRequest(ApiUrl)
-		if err!=nil{
+		response, err := o.makeHttpRequest(ApiUrl)
+		if err != nil {
 			return err
 		}
 		responseBody, err := ioutil.ReadAll(response.Body)
@@ -219,59 +219,59 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 	return nil
 }
 
-func (o *LogParameters) makeHttpRequest(baseUrl string) (*http.Response,error) {
+func (o *LogParameters) makeHttpRequest(baseUrl string) (*http.Response, error) {
 
 	var urlBuilder strings.Builder
 	urlBuilder.WriteString(baseUrl)
 	numParameters := 0
-	if len(o.Podname) >0{
+	if len(o.Podname) > 0 {
 		urlBuilder.WriteString("?")
-		urlBuilder.WriteString("podname="+o.Podname)
+		urlBuilder.WriteString("podname=" + o.Podname)
 		numParameters = numParameters + 1
 	}
-	if len(o.Namespace) >0{
-		if numParameters == 0{
+	if len(o.Namespace) > 0 {
+		if numParameters == 0 {
 			urlBuilder.WriteString("?")
-		}else{
+		} else {
 			urlBuilder.WriteString("&")
 		}
-		urlBuilder.WriteString("namespace="+o.Namespace)
+		urlBuilder.WriteString("namespace=" + o.Namespace)
 		numParameters = numParameters + 1
 	}
-	if len(o.Limit) >0{
-		if numParameters == 0{
+	if len(o.Limit) > 0 {
+		if numParameters == 0 {
 			urlBuilder.WriteString("?")
-		}else{
+		} else {
 			urlBuilder.WriteString("&")
 		}
-		urlBuilder.WriteString("maxlogs="+o.Limit)
+		urlBuilder.WriteString("maxlogs=" + o.Limit)
 		numParameters = numParameters + 1
 	}
-	if len(o.Level) >0{
-		if numParameters == 0{
+	if len(o.Level) > 0 {
+		if numParameters == 0 {
 			urlBuilder.WriteString("?")
-		}else{
+		} else {
 			urlBuilder.WriteString("&")
 		}
-		urlBuilder.WriteString("level="+o.Level)
+		urlBuilder.WriteString("level=" + o.Level)
 		numParameters = numParameters + 1
 	}
-	if len(o.StartTime)>0 && len(o.EndTime)>0{
-		if numParameters == 0{
+	if len(o.StartTime) > 0 && len(o.EndTime) > 0 {
+		if numParameters == 0 {
 			urlBuilder.WriteString("?")
-		}else{
+		} else {
 			urlBuilder.WriteString("&")
 		}
-		urlBuilder.WriteString("starttime="+o.StartTime)
-		urlBuilder.WriteString("&finishtime="+o.EndTime)
+		urlBuilder.WriteString("starttime=" + o.StartTime)
+		urlBuilder.WriteString("&finishtime=" + o.EndTime)
 		numParameters = numParameters + 1
 	}
 	response, err := http.Get(urlBuilder.String())
 
 	if err != nil {
-		return nil,fmt.Errorf("http request failed: %v", err)
+		return nil, fmt.Errorf("http request failed: %v", err)
 	}
-	return response,nil
+	return response, nil
 }
 
 func printLogs(logList []string, streams genericclioptions.IOStreams, limit string) error {
