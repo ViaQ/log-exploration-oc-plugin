@@ -24,20 +24,28 @@ import (
 
 var (
 	logsExample = templates.Examples(i18n.T(`
+		
 		# Return snapshot logs from pod openshift-apiserver-operator-849d7869ff-r94g8 with a maximum of 10 Entries
 		oc historical-logs --podname=openshift-apiserver-operator-849d7869ff-r94g8 --limit=10
+		
 		# Return snapshot logs from namespace openshift-apiserver-operator and logging level info
 		oc historical-logs --namespace=openshift-apiserver-operator --level=info
+		
 		# Return snapshot logs from every index without filtering
 		oc historical-logs
+		
 		# Return snapshot of historical-logs from pods of stateful set nginx
 		oc historical-logs --statefulset=nginx
+		
 		# Return snapshot of historical-logs from pods of deployment kibana
 		oc historical-logs --deployment=kibana
+		
 		# Return snapshot of historical-logs from pods of daemon set fluentd
 		oc historical-logs --daemonset=fluentd
+		
 		# Return snapshot logs in a time range between current time - 5 minutes and current time
 		oc historical-logs --tail=5m
+		
 		# Return snapshot logs for pods in deployment log-exploration-api in the last 10 seconds
 		oc historical-logs --deployment=log-exploration-api --tail=10s`))
 )
