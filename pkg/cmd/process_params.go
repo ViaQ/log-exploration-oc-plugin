@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/ViaQ/log-exploration-oc-plugin/pkg/client"
 	"strconv"
 	"time"
 )

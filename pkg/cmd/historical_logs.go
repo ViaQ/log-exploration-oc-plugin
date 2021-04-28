@@ -104,7 +104,7 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
 		return err
 	}
 
-	err = o.ProcessLogParameters(kubernetesOptions)
+	err = o.ProcessLogParameters()
 
 	if err != nil {
 		return err
