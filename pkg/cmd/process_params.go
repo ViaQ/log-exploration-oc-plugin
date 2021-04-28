@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (o *LogParameters) ProcessLogParameters(kubernetesOptions *client.KubernetesOptions) error {
+func (o *LogParameters) ProcessLogParameters() error {
 
 	if len(o.Tail) > 0 {
 		tail, err := strconv.Atoi(o.Tail[0 : len(o.Tail)-1]) //extract numeric value. For example, extract 50 from 50s or 10 from 10m
