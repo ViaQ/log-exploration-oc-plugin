@@ -120,9 +120,6 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []stri
 	for _, pod := range podList {
 
 		go fetchLogs(baseUrl, o, pod, podLogsCh)
-		if err != nil {
-			continue
-		}
 	}
 
 	for index := 0; index < len(podList); index++ {
