@@ -9,8 +9,9 @@ import (
 )
 
 type KubernetesOptions struct {
-	Clientset  kubernetes.Interface
-	ClusterUrl string
+	Clientset        kubernetes.Interface
+	ClusterUrl       string
+	CurrentNamespace string
 }
 
 func KubernetesClient() (*KubernetesOptions, error) {
@@ -28,6 +29,11 @@ func KubernetesClient() (*KubernetesOptions, error) {
 	if err != nil {
 		return nil, fmt.Errorf("an error occurred while creating kubernetes client: %v", err)
 	}
+
+	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()
+	namespace := clientCfg.Contexts[clientCfg.CurrentContext].Namespace
+
+	kubernetesOptions.CurrentNamespace = namespace
 	kubernetesOptions.Clientset = clientset
 	kubernetesOptions.ClusterUrl = config.Host
 	return kubernetesOptions, nil

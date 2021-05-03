@@ -1,7 +1,9 @@
 package k8sresources
 
 type Resources struct {
-	Deployment  string
-	DaemonSet   string
-	StatefulSet string
+	IsDeployment  bool
+	IsDaemonSet   bool
+	IsStatefulSet bool
+	IsPod         bool
+	Name          string
 }
