@@ -1,11 +1,11 @@
-package cmd
+package logs
 
 import "time"
 
 type LogOptions struct {
-	ID     string `json:"_id"`
-	Index  string `json:"_index"`
-	Score  int    `json:"_score"`
+	ID     string  `json:"_id"`
+	Index  string  `json:"_index"`
+	Score  float64 `json:"_score"`
 	Source struct {
 		Timestamp time.Time `json:"@timestamp"`
 		Docker    struct {

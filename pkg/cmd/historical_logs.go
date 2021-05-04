@@ -1,61 +1,71 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/client"
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/constants"
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/k8sresources"
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/logs"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 var (
 	logsExample = templates.Examples(i18n.T(`
-		# Return snapshot logs from pod openshift-apiserver-operator-849d7869ff-r94g8 with a maximum of 10 Entries
-		kubectl historical-logs --podname=openshift-apiserver-operator-849d7869ff-r94g8 --maxlogs=10
-		# Return snapshot logs from namespace openshift-apiserver-operator and logging level info
-		kubectl historical-logs --namespace=openshift-apiserver-operator --level=info
-		# Return snapshot logs from every index without filtering
-		kubectl historical-logs
-		# Return snapshot of historical-logs from Infrastructure index
-		kubectl historical-logs --index=infra-000001
-		# Return snapshot logs in a time range between start and end times
-		kubectl historical-logs --starttime=2021-03-09T03:40:00.163677339Z --finishtime=2021-03-09T03:50:00.163677339Z
-		# Return snapshot logs in a time range between start and end times for the infrastructure index
-		kubectl historical-logs --starttime=2021-03-09T03:40:00.163677339Z --finishtime=2021-03-09T03:50:00.163677339Z --index=infra-000001
-		# Return snapshot a maximum of 20 historical-logs`))
+		# Return snapshot historical-logs from pod openshift-apiserver-operator-849d7869ff-r94g8 with a maximum of 10 log extries
+		oc historical-logs podname=openshift-apiserver-operator-849d7869ff-r94g8 --limit=10
+		
+		# Return snapshot of historical-logs from pods of stateful set prometheus from namespace openshift-apiserver-operator and logging level info
+		oc historical-logs statefulset=prometheus --namespace=openshift-apiserver-operator --level=info
+		
+		# Return snapshot of historical-logs from pods of stateful set nginx in the current namespace with pod name and container name as log prefix
+		oc historical-logs statefulset=nginx --prefix=true
+		
+		# Return snapshot of historical-logs from pods of deployment kibana in the namespace openshift-logging with a maximum of 100 log entries
+		oc historical-logs deployment=kibana --namespace=openshift-logging --limit=100
+		
+		# Return snapshot of historical-logs from pods of daemon set fluentd in the current namespace
+		oc historical-logs daemonset=fluentd
+		
+		# Return snapshot logs of pods in deployment cluster-logging-operator in a time range between current time - 5 minutes and current time
+		oc historical-logs deployment=cluster-logging-operator --tail=5m
+		
+		# Return snapshot logs for pods in deployment log-exploration-api in the last 10 seconds
+		oc historical-logs deployment=log-exploration-api --tail=10s`))
 )
 
-type LogParameters struct {
-	Namespace  string `json:"namespace"`
-	Index      string `json:"index"`
-	Podname    string `json:"podname"`
-	StartTime  string `json:"starttime"`
-	FinishTime string `json:"finishtime"`
-	Level      string `json:"level"`
-	MaxLogs    string `json:"maxlogs"`
+type ResponseLogs struct {
+	Logs []string
 }
 
-type ResponseLogs struct {
-	Logs []string `json:"Logs"`
+type LogParameters struct {
+	Namespace string
+	Tail      string
+	StartTime string
+	EndTime   string
+	Level     string
+	Limit     int
+	Prefix    bool
+	k8sresources.Resources
 }
 
 func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 
 	o := &LogParameters{}
+
 	cmd := &cobra.Command{
-		Use:     "historical-logs [flags]",
+		Use:     "historical-logs [resource-type]=[resource-name] [flags]",
 		Short:   "View logs filtered on various parameters",
 		Example: logsExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := o.Execute(streams)
+			err := o.Execute(streams, args)
 			if err != nil {
 				return err
 			}
@@ -69,77 +79,152 @@ func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 
 func (o *LogParameters) AddFlags(cmd *cobra.Command) {
 
-	cmd.Flags().StringVar(&o.Podname, "podname", "", "Filter Historical logs on a specific pod name.")
 	cmd.Flags().StringVar(&o.Namespace, "namespace", "", "Extract Historical logs from a specific namespace")
-	cmd.Flags().StringVar(&o.StartTime, "starttime", "", "Fetch Historical logs from a particular timestamp")
-	cmd.Flags().StringVar(&o.FinishTime, "finishtime", "", "Fetch Historical logs till a timestamp")
+	cmd.Flags().StringVar(&o.Tail, "tail", "", "Fetch Historical logs for the last N seconds, minutes, hours, or days")
 	cmd.Flags().StringVar(&o.Level, "level", "", "Fetch Historical logs from different logging level, Example: Info,debug,Error,Unknown, etc")
-	cmd.Flags().StringVar(&o.MaxLogs, "maxlogs", "", "Specify number of documents [logs] to be fetched. 1000 by default")
-	cmd.Flags().StringVar(&o.Index, "index", "", "Specify Index to filter by [infra-000001/app-000001/audit-000001")
-
+	cmd.Flags().IntVar(&o.Limit, "limit", constants.LimitUpperBound, "Specify number of documents [logs] to be fetched")
+	cmd.Flags().BoolVar(&o.Prefix, "prefix", false, "Prefix each log with the log source (pod name and container name)")
 }
 
-func (o *LogParameters) Execute(streams genericclioptions.IOStreams) error {
+func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []string) error {
 
-	kubeconfig := filepath.Join(
-		os.Getenv("HOME"), ".kube", "config",
-	)
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	kubernetesOptions, err := client.KubernetesClient()
 	if err != nil {
-		return fmt.Errorf("Kubeconfig Error: %v", err)
+		return err
 	}
 
-	payload := new(bytes.Buffer)
-	err = json.NewEncoder(payload).Encode(o)
+	err = o.ProcessLogParameters(kubernetesOptions, args)
 
 	if err != nil {
-		return fmt.Errorf("An Error Occurred while encoding JSON: %v", err)
+		return err
 	}
 
-	clusterUrl := config.Host
-	endIndex := strings.LastIndex(clusterUrl, ":")
-	startIndex := strings.Index(clusterUrl, ".") + 1
-	clusterName := clusterUrl[startIndex:endIndex]
+	var podList []string
+
+	podList, err = k8sresources.GetResourcesPodList(kubernetesOptions, &o.Resources, o.Namespace)
+
+	if err != nil {
+		return err
+	}
+
+	endIndex := strings.LastIndex(kubernetesOptions.ClusterUrl, ":")
+	startIndex := strings.Index(kubernetesOptions.ClusterUrl, ".") + 1
+	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
 
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
 
-	ApiUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
+	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
+	podLogsCh := make(chan []string)
+	var logList []string
+	for _, pod := range podList {
 
-	req, err := http.NewRequest("GET", ApiUrl, payload)
-
-	if err != nil {
-		return fmt.Errorf("Request Failed: %v", err)
+		go fetchLogs(baseUrl, o, pod, podLogsCh)
 	}
 
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("Response Error: %v", err)
+	for index := 0; index < len(podList); index++ {
+		podLogs := <-podLogsCh
+		logList = append(logList, podLogs...)
 	}
 
-	responseBody, err := ioutil.ReadAll(res.Body)
+	err = printLogs(logList, streams, o.Limit)
 	if err != nil {
-		return fmt.Errorf("Failed to read Response: %v", err)
+		return err
+	}
+
+	return nil
+
+}
+
+func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []string) {
+
+	req, err := http.NewRequest("GET", baseUrl, nil)
+
+	if err != nil {
+		fmt.Printf("unable to fetch logs of pod %s - http request failed: %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
+
+	query := req.URL.Query()
+	query.Add("podname", podname)
+	query.Add("namespace", logParameters.Namespace)
+	query.Add("starttime", logParameters.StartTime)
+	query.Add("finishtime", logParameters.EndTime)
+	query.Add("maxlogs", strconv.Itoa(logParameters.Limit))
+	query.Add("level", logParameters.Level)
+	req.URL.RawQuery = query.Encode()
+
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("unable to fetch logs of pod %s - failed to get http response %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
+
+	responseBody, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		fmt.Printf("unable to fetch logs of pod %s - failed to read response: %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
+
+	err = response.Body.Close()
+
+	if err != nil {
+		fmt.Printf("unable to fetch logs of pod %s - an error occurred while attempting to close response body %v\n", podname, err)
+		podLogsCh <- nil
+		return
 	}
 
 	jsonResponse := &ResponseLogs{}
-	json.Unmarshal(responseBody, &jsonResponse)
+	err = json.Unmarshal(responseBody, &jsonResponse)
+	if err != nil {
+		fmt.Printf("unable to fetch logs of pod %s - an error occurred while unmarshalling JSON response: %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
 
-	for i := 0; i < len(jsonResponse.Logs); i++ {
+	var logList []string
+	for _, log := range jsonResponse.Logs {
 
-		log := LogOptions{}
-		err = json.Unmarshal([]byte(jsonResponse.Logs[i]), &log)
+		logOption := logs.LogOptions{}
+		err := json.Unmarshal([]byte(log), &logOption)
 
 		if err != nil {
-			return fmt.Errorf("An Error Occurred while decoding response: %v", err)
+			fmt.Printf("unable to fetch logs of pod %s - no logs present, or input parameters were invalid\n", podname)
+			podLogsCh <- nil
+			return
 		}
 
-		if len(log.Source.Message) > 0 {
-			fmt.Fprintf(streams.Out, log.Source.Message+"\n")
+		if len(logOption.Source.Message) > 0 {
+			if logParameters.Prefix && len(logOption.Source.Kubernetes.PodName) > 0 && len(logOption.Source.Kubernetes.ContainerName) > 0 {
+				logList = append(logList, "pod/"+logOption.Source.Kubernetes.PodName+"/"+logOption.Source.Kubernetes.ContainerName+"   "+logOption.Source.Message)
+			} else {
+				logList = append(logList, logOption.Source.Message)
+			}
 		}
+	}
+	podLogsCh <- logList
+}
 
+func printLogs(logList []string, streams genericclioptions.IOStreams, limit int) error {
+
+	if len(logList) == 0 {
+		return fmt.Errorf("no logs present, or input parameters were invalid")
+	}
+
+	var err error
+
+	for logCount, log := range logList {
+
+		if logCount >= limit {
+			return nil
+		}
+		_, err = fmt.Fprintf(streams.Out, log+"\n")
+		if err != nil {
+			return fmt.Errorf("an error occurred while printing logs: %v", err)
+		}
 	}
 
 	return nil
