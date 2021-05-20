@@ -13,6 +13,7 @@ import (
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -110,15 +111,13 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []stri
 	endIndex := strings.LastIndex(kubernetesOptions.ClusterUrl, ":")
 	startIndex := strings.Index(kubernetesOptions.ClusterUrl, ".") + 1
 	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
-
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
-
 	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
-	podLogsCh := make(chan []string)
-	var logList []string
-	for _, pod := range podList {
 
+	podLogsCh := make(chan []logs.LogOptions)
+	var logList []logs.LogOptions
+	for _, pod := range podList {
 		go fetchLogs(baseUrl, o, pod, podLogsCh)
 	}
 
@@ -127,7 +126,11 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []stri
 		logList = append(logList, podLogs...)
 	}
 
-	err = printLogs(logList, streams, o.Limit)
+	sort.Slice(logList, func(index1, index2 int) bool {
+		return logList[index1].Source.Timestamp.String() > logList[index2].Source.Timestamp.String()
+	})
+
+	err = printLogs(logList, streams, o.Limit, o.Prefix)
 	if err != nil {
 		return err
 	}
@@ -136,7 +139,7 @@ func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []stri
 
 }
 
-func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []string) {
+func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions) {
 
 	req, err := http.NewRequest("GET", baseUrl, nil)
 
@@ -185,7 +188,7 @@ func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		return
 	}
 
-	var logList []string
+	var logList []logs.LogOptions
 	for _, log := range jsonResponse.Logs {
 
 		logOption := logs.LogOptions{}
@@ -196,19 +199,13 @@ func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 			podLogsCh <- nil
 			return
 		}
-
-		if len(logOption.Source.Message) > 0 {
-			if logParameters.Prefix && len(logOption.Source.Kubernetes.PodName) > 0 && len(logOption.Source.Kubernetes.ContainerName) > 0 {
-				logList = append(logList, "pod/"+logOption.Source.Kubernetes.PodName+"/"+logOption.Source.Kubernetes.ContainerName+"   "+logOption.Source.Message)
-			} else {
-				logList = append(logList, logOption.Source.Message)
-			}
-		}
+		logList = append(logList, logOption)
 	}
+
 	podLogsCh <- logList
 }
 
-func printLogs(logList []string, streams genericclioptions.IOStreams, limit int) error {
+func printLogs(logList []logs.LogOptions, streams genericclioptions.IOStreams, limit int, prefix bool) error {
 
 	if len(logList) == 0 {
 		return fmt.Errorf("no logs present, or input parameters were invalid")
@@ -221,10 +218,22 @@ func printLogs(logList []string, streams genericclioptions.IOStreams, limit int)
 		if logCount >= limit {
 			return nil
 		}
-		_, err = fmt.Fprintf(streams.Out, log+"\n")
-		if err != nil {
-			return fmt.Errorf("an error occurred while printing logs: %v", err)
+
+		if len(log.Source.Message) > 0 {
+			if prefix && len(log.Source.Kubernetes.PodName) > 0 && len(log.Source.Kubernetes.ContainerName) > 0 {
+				_, err = fmt.Fprintf(streams.Out, "pod/"+log.Source.Kubernetes.PodName+"/"+log.Source.Kubernetes.ContainerName+"   "+log.Source.Message+"\n")
+				if err != nil {
+					return fmt.Errorf("an error occurred while printing logs: %v", err)
+				}
+			} else {
+				_, err = fmt.Fprintf(streams.Out, log.Source.Message+"\n")
+				if err != nil {
+					return fmt.Errorf("an error occurred while printing logs: %v", err)
+				}
+			}
+
 		}
+
 	}
 
 	return nil
