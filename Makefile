@@ -20,4 +20,3 @@ test:
 test-cover:
 	go test ./pkg/... -coverprofile=coverage.out && go tool cover -html=coverage.out
 
-
