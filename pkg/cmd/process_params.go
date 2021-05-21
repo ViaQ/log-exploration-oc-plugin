@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/ViaQ/log-exploration-oc-plugin/pkg/client"
-	"github.com/ViaQ/log-exploration-oc-plugin/pkg/constants"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/client"
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/constants"
 )
 
 func (o *LogParameters) ProcessLogParameters(kubernetesOptions *client.KubernetesOptions, args []string) error {

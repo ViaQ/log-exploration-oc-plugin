@@ -3,19 +3,20 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+
 	"github.com/ViaQ/log-exploration-oc-plugin/pkg/client"
 	"github.com/ViaQ/log-exploration-oc-plugin/pkg/constants"
 	"github.com/ViaQ/log-exploration-oc-plugin/pkg/k8sresources"
 	"github.com/ViaQ/log-exploration-oc-plugin/pkg/logs"
 	"github.com/spf13/cobra"
-	"io/ioutil"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
-	"net/http"
-	"sort"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -66,7 +67,11 @@ func NewCmdLogFilter(streams genericclioptions.IOStreams) *cobra.Command {
 		Short:   "View logs filtered on various parameters",
 		Example: logsExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := o.Execute(streams, args)
+			kubernetesOptions, err := client.KubernetesClient()
+			if err != nil {
+				return err
+			}
+			err = o.Execute(kubernetesOptions, streams, args)
 			if err != nil {
 				return err
 			}
@@ -87,14 +92,8 @@ func (o *LogParameters) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&o.Prefix, "prefix", false, "Prefix each log with the log source (pod name and container name)")
 }
 
-func (o *LogParameters) Execute(streams genericclioptions.IOStreams, args []string) error {
-
-	kubernetesOptions, err := client.KubernetesClient()
-	if err != nil {
-		return err
-	}
-
-	err = o.ProcessLogParameters(kubernetesOptions, args)
+func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, streams genericclioptions.IOStreams, args []string) error {
+	err := o.ProcessLogParameters(kubernetesOptions, args)
 
 	if err != nil {
 		return err
@@ -190,7 +189,6 @@ func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 
 	var logList []logs.LogOptions
 	for _, log := range jsonResponse.Logs {
-
 		logOption := logs.LogOptions{}
 		err := json.Unmarshal([]byte(log), &logOption)
 
@@ -211,22 +209,22 @@ func printLogs(logList []logs.LogOptions, streams genericclioptions.IOStreams, l
 		return fmt.Errorf("no logs present, or input parameters were invalid")
 	}
 
-	var err error
-
 	for logCount, log := range logList {
-
+		if limit < 0 {
+			return fmt.Errorf("incorrect \"limit\" value entered, an integer value between 0 and 1000 is required")
+		}
 		if logCount >= limit {
 			return nil
 		}
 
 		if len(log.Source.Message) > 0 {
 			if prefix && len(log.Source.Kubernetes.PodName) > 0 && len(log.Source.Kubernetes.ContainerName) > 0 {
-				_, err = fmt.Fprintf(streams.Out, "pod/"+log.Source.Kubernetes.PodName+"/"+log.Source.Kubernetes.ContainerName+"   "+log.Source.Message+"\n")
+				_, err := fmt.Fprintf(streams.Out, "pod/"+log.Source.Kubernetes.PodName+"/"+log.Source.Kubernetes.ContainerName+"   "+log.Source.Message+"\n")
 				if err != nil {
 					return fmt.Errorf("an error occurred while printing logs: %v", err)
 				}
 			} else {
-				_, err = fmt.Fprintf(streams.Out, log.Source.Message+"\n")
+				_, err := fmt.Fprintf(streams.Out, log.Source.Message+"\n")
 				if err != nil {
 					return fmt.Errorf("an error occurred while printing logs: %v", err)
 				}
