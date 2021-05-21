@@ -117,7 +117,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 	podLogsCh := make(chan []logs.LogOptions)
 	var logList []logs.LogOptions
 	for _, pod := range podList {
-		go fetchLogs(baseUrl, o, pod, podLogsCh)
+		go FetchLogs(baseUrl, o, pod, podLogsCh)
 	}
 
 	for index := 0; index < len(podList); index++ {
@@ -138,7 +138,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 
 }
 
-func fetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions) {
+func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions) {
 
 	req, err := http.NewRequest("GET", baseUrl, nil)
 

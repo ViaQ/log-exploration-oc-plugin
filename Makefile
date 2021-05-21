@@ -5,7 +5,7 @@ BUILD_DIR:=./bin
 LDFLAGS:= -s -w -X '${PACKAGE}/pkg/version.Version=${VERSION}' \
 					-X '${PACKAGE}/pkg/version.BuildTime=${BUILDTIME}'
 
-.PHONY: build install test 
+.PHONY: build install test test-e2e
 build: test
 	mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o $(BUILD_DIR)/$(EXECUTABLE) cmd/oc-historical_logs.go
@@ -20,3 +20,10 @@ test:
 test-cover:
 	go test ./pkg/... -coverprofile=coverage.out && go tool cover -html=coverage.out
 
+test-e2e:
+	docker-compose up -d
+	@sleep 5
+	chmod +x test/e2e/populate-indices.sh
+	test/e2e/populate-indices.sh
+	go test -v test/e2e/*.go
+	docker-compose down
