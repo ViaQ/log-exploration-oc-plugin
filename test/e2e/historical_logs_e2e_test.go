@@ -1,6 +1,7 @@
 package test_e2e
 
 import (
+	"github.com/ViaQ/log-exploration-oc-plugin/pkg/constants"
 	"strconv"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestFetchLogs(t *testing.T) {
 			make(chan []logs.LogOptions),
 			"http://localhost:8080/logs/filter",
 			map[string]string{},
-			map[string]string{"pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
+			map[string]string{"Pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
 			nil,
 		},
 		{
@@ -34,7 +35,7 @@ func TestFetchLogs(t *testing.T) {
 			make(chan []logs.LogOptions),
 			"http://localhost:8080/logs/filter",
 			map[string]string{"Podname": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
-			map[string]string{"pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
+			map[string]string{"Pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
 			nil,
 		},
 		{
@@ -43,7 +44,7 @@ func TestFetchLogs(t *testing.T) {
 			make(chan []logs.LogOptions),
 			"http://localhost:8080/logs/filter",
 			map[string]string{"Tail": "00h30m"},
-			map[string]string{"pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
+			map[string]string{"Pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
 			nil,
 		},
 		{
@@ -52,7 +53,7 @@ func TestFetchLogs(t *testing.T) {
 			make(chan []logs.LogOptions),
 			"http://localhost:8080/logs/filter",
 			map[string]string{"Limit": "5"},
-			map[string]string{"pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
+			map[string]string{"Pod": "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal"},
 			nil,
 		},
 	}
@@ -60,6 +61,7 @@ func TestFetchLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Log("Running:", tt.TestName)
 		logParameters := cmd.LogParameters{}
+		logParameters.Limit = constants.LimitUpperBound
 		for k, v := range tt.TestLogParams {
 			switch k {
 			case "Namespace":
@@ -76,7 +78,6 @@ func TestFetchLogs(t *testing.T) {
 				logParameters.Limit, _ = strconv.Atoi(v)
 			}
 		}
-
 		logParameters.Resources = k8sresources.Resources{}
 		for k, v := range tt.TestResources {
 			switch k {
@@ -93,9 +94,9 @@ func TestFetchLogs(t *testing.T) {
 		}
 
 		go cmd.FetchLogs(tt.TestApiUrl, &logParameters, "openshift-kube-scheduler-ip-10-0-162-9.ec2.internal", tt.TestLogs)
-		// podLogs := <-tt.TestLogList
-		// if podLogs == nil {
-		t.Errorf("No logs found for the pod openshift-kube-scheduler-ip-10-0-162-9.ec2.internal")
-		// }
+		podLogs := <-tt.TestLogs
+		if podLogs == nil {
+			t.Errorf("No logs found for the pod openshift-kube-scheduler-ip-10-0-162-9.ec2.internal")
+		}
 	}
 }
