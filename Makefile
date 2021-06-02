@@ -22,8 +22,7 @@ test-cover:
 
 test-e2e:
 	docker-compose up -d
-	@sleep 5
 	chmod +x test/e2e/populate-indices.sh
 	test/e2e/populate-indices.sh
 	go test -v test/e2e/*.go
-	docker-compose down
+	docker-compose down -v
