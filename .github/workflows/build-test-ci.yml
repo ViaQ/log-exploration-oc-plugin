@@ -33,7 +33,7 @@ jobs:
         
     - name: Run Unit tests
       run: |
-        go test -race -covermode atomic -coverprofile=covprofile ./pkg/...
+        make test
         
     - name: Install goveralls
       env:
@@ -41,6 +41,5 @@ jobs:
       run: go get github.com/mattn/goveralls
       
     - name: Send coverage
-      env:
-        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: goveralls -coverprofile=covprofile -service=github
+      run: |
+        make test-cover
