@@ -44,7 +44,8 @@ var (
 )
 
 type ResponseLogs struct {
-	Logs []string
+	Logs  []string
+	Error string
 }
 
 type LogParameters struct {
@@ -181,8 +182,15 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 
 	jsonResponse := &ResponseLogs{}
 	err = json.Unmarshal(responseBody, &jsonResponse)
+
 	if err != nil {
 		fmt.Printf("unable to fetch logs of pod %s - an error occurred while unmarshalling JSON response: %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
+
+	if jsonResponse.Error != "" {
+		fmt.Printf("unable to fetch logs of pod %s - a server-side error occured: %v\n", podname, jsonResponse.Error)
 		podLogsCh <- nil
 		return
 	}
