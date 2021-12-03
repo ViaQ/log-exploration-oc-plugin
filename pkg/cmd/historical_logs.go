@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -44,7 +45,8 @@ var (
 )
 
 type ResponseLogs struct {
-	Logs []string
+	Logs  []string
+	Error string
 }
 
 type LogParameters struct {
@@ -112,7 +114,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
-	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
+	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs"
 
 	podLogsCh := make(chan []logs.LogOptions)
 	var logList []logs.LogOptions
@@ -148,13 +150,21 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		return
 	}
 
+	out, err := exec.Command("bash", "-c", "oc whoami --show-token").Output()
+	if err != nil {
+		fmt.Println("Error while reading Token", err)
+	}
+	out = out[:len(out)-1]
+	var bearer = "`Bearer " + string(out) + "`"
+	req.Header.Set("Authorization", bearer)
+
 	query := req.URL.Query()
-	query.Add("podname", podname)
-	query.Add("namespace", logParameters.Namespace)
-	query.Add("starttime", logParameters.StartTime)
-	query.Add("finishtime", logParameters.EndTime)
-	query.Add("maxlogs", strconv.Itoa(logParameters.Limit))
-	query.Add("level", logParameters.Level)
+	query.Add("/pod/", podname)
+	query.Add("/namespace/", logParameters.Namespace)
+	query.Add("/starttime/", logParameters.StartTime)
+	query.Add("/finishtime/", logParameters.EndTime)
+	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
+	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
 
 	response, err := http.DefaultClient.Do(req)
@@ -181,8 +191,15 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 
 	jsonResponse := &ResponseLogs{}
 	err = json.Unmarshal(responseBody, &jsonResponse)
+
 	if err != nil {
 		fmt.Printf("unable to fetch logs of pod %s - an error occurred while unmarshalling JSON response: %v\n", podname, err)
+		podLogsCh <- nil
+		return
+	}
+
+	if jsonResponse.Error != "" {
+		fmt.Printf("unable to fetch logs of pod %s - a server-side error occured: %v\n", podname, jsonResponse.Error)
 		podLogsCh <- nil
 		return
 	}
@@ -193,7 +210,7 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		err := json.Unmarshal([]byte(log), &logOption)
 
 		if err != nil {
-			fmt.Printf("unable to fetch logs of pod %s - no logs present, or input parameters were invalid\n", podname)
+			fmt.Printf("unable to fetch logs of pod %s - no logs present, or input parameters were invalid %v\n", podname, err)
 			podLogsCh <- nil
 			return
 		}
