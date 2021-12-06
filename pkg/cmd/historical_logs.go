@@ -159,12 +159,12 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 	req.Header.Set("Authorization", bearer)
 
 	query := req.URL.Query()
-	query.Add("/pod/:", podname)
-	query.Add("/namespace/:", logParameters.Namespace)
-	query.Add("/starttime/:", logParameters.StartTime)
-	query.Add("/finishtime/:", logParameters.EndTime)
-	query.Add("/maxlogs/:", strconv.Itoa(logParameters.Limit))
-	query.Add("/level/:", logParameters.Level)
+	query.Add("/pod/", podname)
+	query.Add("/namespace/", logParameters.Namespace)
+	query.Add("/starttime/", logParameters.StartTime)
+	query.Add("/finishtime/", logParameters.EndTime)
+	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
+	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
 	fmt.Println(req.URL)
 
