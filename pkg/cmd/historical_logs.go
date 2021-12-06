@@ -151,7 +151,7 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 
 	out, err := exec.Command("bash", "-c", "oc whoami --show-token").Output()
 	if err != nil {
-		fmt.Println("Error", err)
+		fmt.Println("Error while reading Token", err)
 	}
 	out = out[:len(out)-1]
 	var bearer = "`Bearer " + string(out) + "`"
@@ -165,7 +165,6 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
 	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
-	fmt.Println(req.URL)
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
