@@ -12,6 +12,7 @@ type KubernetesOptions struct {
 	Clientset        kubernetes.Interface
 	ClusterUrl       string
 	CurrentNamespace string
+	ClusterToken	 string
 }
 
 func KubernetesClient() (*KubernetesOptions, error) {
@@ -33,6 +34,7 @@ func KubernetesClient() (*KubernetesOptions, error) {
 	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()
 	namespace := clientCfg.Contexts[clientCfg.CurrentContext].Namespace
 
+	kubernetesOptions.ClusterToken = config.BearerToken
 	kubernetesOptions.CurrentNamespace = namespace
 	kubernetesOptions.Clientset = clientset
 	kubernetesOptions.ClusterUrl = config.Host

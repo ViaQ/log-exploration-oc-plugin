@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -114,12 +113,12 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
-	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs"
+	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs" 
 
 	podLogsCh := make(chan []logs.LogOptions)
 	var logList []logs.LogOptions
 	for _, pod := range podList {
-		go FetchLogs(baseUrl, o, pod, podLogsCh)
+		go FetchLogs(baseUrl, o, pod, podLogsCh, kubernetesOptions.ClusterToken)
 	}
 
 	for index := 0; index < len(podList); index++ {
@@ -140,7 +139,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 
 }
 
-func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions) {
+func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions, token string) {
 
 	req, err := http.NewRequest("GET", baseUrl, nil)
 
@@ -150,12 +149,8 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		return
 	}
 
-	out, err := exec.Command("bash", "-c", "oc whoami --show-token").Output()
-	if err != nil {
-		fmt.Println("Error while reading Token", err)
-	}
-	out = out[:len(out)-1]
-	var bearer = "`Bearer " + string(out) + "`"
+	// reading token from config in KubernetesClient
+	var bearer = "`Bearer " + token + "`"
 	req.Header.Set("Authorization", bearer)
 
 	query := req.URL.Query()
@@ -166,7 +161,6 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
 	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
-	fmt.Println(req.URL)
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {

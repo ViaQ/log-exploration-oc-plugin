@@ -165,7 +165,6 @@ func TestExecute(t *testing.T) {
 
 		httpmock.Activate()
 		defer httpmock.DeactivateAndReset()
-<<<<<<< HEAD
 		if tt.TestName == "Server-Side Error" {
 			httpmock.RegisterResponder("GET", "http://log-exploration-api-route-openshift-logging.apps.com/logs",
 				func(req *http.Request) (*http.Response, error) {
@@ -188,18 +187,6 @@ func TestExecute(t *testing.T) {
 					return resp, nil
 				})
 		}
-=======
-		httpmock.RegisterResponder("GET", "http://log-exploration-api-route-openshift-logging.apps.com/logs",
-			func(req *http.Request) (*http.Response, error) {
-				resp, err := httpmock.NewJsonResponse(200, map[string][]string{"Logs": {
-					`{"_index":"infra-000001","_type":"_doc","_id":"ODE3MjIxYjAtZDM1My00YjNmLWFiYTUtNTNjNjNkZmFjNmI2","_score":1,"_source":{"docker":{"container_id":"1128bd9f29e1846ee8351d5f397fc8c966f7b3d786f1e0596d8c918733a6082e"},"kubernetes":{"container_name":"kube-scheduler-cert-syncer","namespace_name":"openshift-kube-scheduler","pod_name":"openshift-kube-scheduler-ip-10-0-162-9.ec2.internal","container_image":"quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cf7ee380dae0dd1f3c5fb082e5b3809b0442dc9fe9e99bebb5f38b668abf54f1","container_image_id":"quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cf7ee380dae0dd1f3c5fb082e5b3809b0442dc9fe9e99bebb5f38b668abf54f1","pod_id":"c3c0585e-0b30-46b6-8897-c06eb31b520f","host":"ip-10-0-162-9.ec2.internal","master_url":"https://kubernetes.default.svc","namespace_id":"7025070c-8998-496e-a2aa-2adf38729364","namespace_labels":{"openshift_io/cluster-monitoring":"true","openshift_io/run-level":"0"},"flat_labels":["app=openshift-kube-scheduler","revision=8","scheduler=true"]},"message":"I0318 06:41:17.541040       1 certsync_controller.go:65] Syncing configmaps: []","level":"unknown","hostname":"ip-10-0-162-9.ec2.internal","pipeline_metadata":{"collector":{"ipaddr4":"10.0.162.9","inputname":"fluent-plugin-systemd","name":"fluentd","received_at":"2021-03-18T06:41:18.260559+00:00","version":"1.7.4 1.6.0"}},"@timestamp":"2021-03-18T06:41:17.541712+00:00","viaq_msg_id":"ODE3MjIxYjAtZDM1My00YjNmLWFiYTUtNTNjNjNkZmFjNmI2"}}`,
-				}})
-				if err != nil {
-					return httpmock.NewStringResponse(500, ""), nil
-				}
-				return resp, nil
-			})
->>>>>>> 544e436... TokenChanges
 
 		err := logParameters.Execute(kubernetesOptions, genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}, tt.Arguments)
 		if err == nil && tt.Error != nil {
