@@ -166,6 +166,7 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
 	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
+	fmt.Println(req.URL)
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
