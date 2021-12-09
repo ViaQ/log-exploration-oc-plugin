@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"io/ioutil"
 	"net/http"
 	"sort"
