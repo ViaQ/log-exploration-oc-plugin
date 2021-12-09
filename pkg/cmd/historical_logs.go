@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -113,7 +114,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
-	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs" 
+	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs"
 
 	podLogsCh := make(chan []logs.LogOptions)
 	var logList []logs.LogOptions
