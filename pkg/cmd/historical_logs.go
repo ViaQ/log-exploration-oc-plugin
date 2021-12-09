@@ -113,12 +113,12 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 	clusterName := kubernetesOptions.ClusterUrl[startIndex:endIndex]
 	/*Example cluster URL : http://api.sangupta-tetrh.devcluster.openshift.com:6443. The first occurrence of '.' and last occurrence of ':'
 	act as start and end indices. Extract cluster name as substring using start and end Indices i.e, sangupta-tetrh.devcluster.openshift.com to build the log-exploration-api URL*/
-	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs/filter"
+	baseUrl := "http://log-exploration-api-route-openshift-logging.apps." + clusterName + "/logs"
 
 	podLogsCh := make(chan []logs.LogOptions)
 	var logList []logs.LogOptions
 	for _, pod := range podList {
-		go FetchLogs(baseUrl, o, pod, podLogsCh)
+		go FetchLogs(baseUrl, o, pod, podLogsCh, kubernetesOptions.ClusterToken)
 	}
 
 	for index := 0; index < len(podList); index++ {
@@ -139,7 +139,7 @@ func (o *LogParameters) Execute(kubernetesOptions *client.KubernetesOptions, str
 
 }
 
-func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions) {
+func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, podLogsCh chan<- []logs.LogOptions, token string) {
 
 	req, err := http.NewRequest("GET", baseUrl, nil)
 
@@ -149,13 +149,17 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		return
 	}
 
+	// reading token from config in KubernetesClient
+	var bearer = "`Bearer " + token + "`"
+	req.Header.Set("Authorization", bearer)
+
 	query := req.URL.Query()
-	query.Add("podname", podname)
-	query.Add("namespace", logParameters.Namespace)
-	query.Add("starttime", logParameters.StartTime)
-	query.Add("finishtime", logParameters.EndTime)
-	query.Add("maxlogs", strconv.Itoa(logParameters.Limit))
-	query.Add("level", logParameters.Level)
+	query.Add("/pod/", podname)
+	query.Add("/namespace/", logParameters.Namespace)
+	query.Add("/starttime/", logParameters.StartTime)
+	query.Add("/finishtime/", logParameters.EndTime)
+	query.Add("/maxlogs/", strconv.Itoa(logParameters.Limit))
+	query.Add("/level/", logParameters.Level)
 	req.URL.RawQuery = query.Encode()
 
 	response, err := http.DefaultClient.Do(req)
@@ -201,7 +205,7 @@ func FetchLogs(baseUrl string, logParameters *LogParameters, podname string, pod
 		err := json.Unmarshal([]byte(log), &logOption)
 
 		if err != nil {
-			fmt.Printf("unable to fetch logs of pod %s - no logs present, or input parameters were invalid\n", podname)
+			fmt.Printf("unable to fetch logs of pod %s - no logs present, or input parameters were invalid %v\n", podname, err)
 			podLogsCh <- nil
 			return
 		}
